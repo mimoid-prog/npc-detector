@@ -2,8 +2,6 @@ import { style } from "@vanilla-extract/css";
 
 export const detectionAlertStyle = style({
   position: "fixed",
-  left: "80%",
-  top: "50%",
   transform: "translate(-50%, -50%)",
   backgroundColor: "white",
   border: "3px solid black",

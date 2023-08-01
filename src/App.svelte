@@ -2,43 +2,59 @@
   import Modal from "./lib/Modal/Modal.svelte";
   import DetectionAlert from "./lib/DetectionAlert/DetectionAlert.svelte";
   import type { Map, Npc } from "./types";
-  import { APP_PREFIX, TRACKED_NPCS_KEY } from "./constants";
+  import { TRACKED_NPCS_KEY } from "./constants";
+  import DevelopmentBar from "./lib/DevelopmentBar/DevelopmentBar.svelte";
+  import { openBtnStyle } from "./lib/OpenBtn/OpenBtn.css";
+  import OpenBtn from "./lib/OpenBtn/OpenBtn.svelte";
 
   const isDevelopment = import.meta.env.MODE === "development";
 
-  let staticMap = "Eder";
+  const mapsData: {
+    [k: string]: string[];
+  } = {
+    Ithan: ["Jarek", "Makatara"],
+    Tristam: ["Czarująca Atalia"],
+    Eder: [],
+  };
+
+  let map = "";
 
   let isConfigModalOpen = false;
-  let isDetectionAlertOpen = false;
+  let detectionAlerts: string[] = [];
 
-  let foundTrackedNpc = "";
   let previousMap = "";
 
   const trackedNpcsRaw = localStorage.getItem(TRACKED_NPCS_KEY);
   let trackedNpcs: string[] = trackedNpcsRaw ? JSON.parse(trackedNpcsRaw) : [];
 
   if (!isDevelopment) {
-    const topRightMenu = document.querySelector(
-      ".top-right"
-    ) as HTMLDivElement | null;
-    if (!topRightMenu) throw new Error("Couldn't find top-right menu");
-    const emptySlot = topRightMenu.querySelector(
-      ".empty-slot-widget"
-    ) as HTMLDivElement | null;
-    if (emptySlot) {
-      emptySlot.remove();
-      console.log("removed empty slot");
-    }
+    // const topRightMenu = document.querySelector(
+    //   ".top-right"
+    // ) as HTMLDivElement | null;
+    // if (!topRightMenu) throw new Error("Couldn't find top-right menu");
+    // const emptySlot = topRightMenu.querySelector(
+    //   ".empty-slot-widget"
+    // ) as HTMLDivElement | null;
+    // if (emptySlot) {
+    //   emptySlot.remove();
+    //   console.log("removed empty slot");
+    // }
+
+    // const openBtn = document.createElement("div");
+    // openBtn.id = `${APP_PREFIX}-open-btn`;
+    // openBtn.className =
+    //   "widget-button green widget-in-interface-bar widget-puzzle ui-draggable ui-draggable-handle";
+    // topRightMenu.appendChild(openBtn);
 
     const openBtn = document.createElement("div");
-    openBtn.id = `${APP_PREFIX}-open-btn`;
-    openBtn.className =
-      "widget-button green widget-in-interface-bar widget-puzzle ui-draggable ui-draggable-handle";
-    topRightMenu.appendChild(openBtn);
+    openBtn.textContent = "NPC DETECTOR";
+    openBtn.className = openBtnStyle;
 
     openBtn.addEventListener("click", () => {
       isConfigModalOpen = true;
     });
+
+    document.body.appendChild(openBtn);
   }
 
   function openConfigModal() {
@@ -50,11 +66,11 @@
   }
 
   function openDetectionAlert(name: string) {
-    isDetectionAlertOpen = true;
+    detectionAlerts = [...detectionAlerts, name];
   }
 
-  function closeDetectionAlert() {
-    isDetectionAlertOpen = false;
+  function closeDetectionAlert(name: string) {
+    detectionAlerts = detectionAlerts.filter((n) => n !== name);
   }
 
   function addNpc(name: string) {
@@ -70,13 +86,9 @@
     trackedNpcs = newTrackedNpcs;
   }
 
-  function changeMap() {
-    staticMap = `${staticMap}${Math.random()}`;
-  }
-
   function getMap(): Map {
     if (import.meta.env.MODE === "development") {
-      return { d: { name: staticMap } };
+      return { d: { name: map } };
     } else {
       return window.Engine.map;
     }
@@ -84,7 +96,9 @@
 
   function getNpcs(): Npc[] {
     if (import.meta.env.MODE === "development") {
-      return [{ d: { nick: "Amigo" } }];
+      const mapData = mapsData[map];
+
+      return mapData.map((npc) => ({ d: { nick: npc } }));
     } else {
       return Object.values(window.Engine.npcs.check());
     }
@@ -92,32 +106,34 @@
 
   function checkForTrackedNpcs() {
     const npcs = getNpcs();
-    const npc = npcs.find(
-      (npc) =>
-        trackedNpcs.findIndex((name) =>
-          npc.d.nick.toLocaleLowerCase().includes(name.toLocaleLowerCase())
-        ) !== -1
-    );
 
-    if (npc && !isDetectionAlertOpen) {
-      foundTrackedNpc = npc.d.nick;
-      openDetectionAlert(npc.d.nick);
-    }
+    trackedNpcs.forEach((trackedNpc) => {
+      const npcNicks = npcs.map((npc) => npc.d.nick);
+      if (npcNicks.includes(trackedNpc)) {
+        openDetectionAlert(trackedNpc);
+      }
+    });
   }
 
   setInterval(() => {
-    const map = getMap().d.name;
-    if (previousMap !== map) {
-      previousMap = map;
+    // console.log(map);
+    const currentMap = isDevelopment ? map : getMap().d.name;
+
+    if (previousMap !== currentMap) {
+      previousMap = currentMap;
       checkForTrackedNpcs();
     }
-  }, 1000);
+  }, 500);
 </script>
 
 <div>
+  <OpenBtn onClick={openConfigModal} />
   {#if isDevelopment}
-    <button on:click={openConfigModal}>Open modal</button>
-    <button on:click={changeMap}>Change map</button>
+    <DevelopmentBar
+      bind:map
+      maps={Object.keys(mapsData)}
+      onModalOpen={openConfigModal}
+    />
   {/if}
   {#if isConfigModalOpen}
     <Modal
@@ -127,7 +143,7 @@
       onDelete={deleteTrackedNpc}
     />
   {/if}
-  {#if isDetectionAlertOpen}
-    <DetectionAlert name={foundTrackedNpc} onClose={closeDetectionAlert} />
-  {/if}
+  {#each detectionAlerts as npc}
+    <DetectionAlert name={npc} onClose={() => closeDetectionAlert(npc)} />
+  {/each}
 </div>
